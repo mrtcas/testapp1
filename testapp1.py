@@ -79,19 +79,18 @@ with tab1:
             with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
                 st.write(f"**Info:** {row['Info']}")
                 col1, col2, col3 = st.columns(3)
-                if col1.button("Edit", key=f"edit_{idx}"):
+        if col1.button("Edit", key=f"edit_{idx}"):
    		st.session_state.edit_index = idx
     		st.session_state.active_tab = "edit"
-		if col2.button("Delete", key=f"delete_{idx}"):
+	if col2.button("Delete", key=f"delete_{idx}"):
     		st.session_state.events.drop(idx, inplace=True)
    		st.session_state.events.reset_index(drop=True, inplace=True)
     		st.success("Event deleted successfully!")
     		st.session_state.active_tab = "edit"
-		if col3.button("Book Now", key=f"book_{idx}"):
+	if col3.button("Book Now", key=f"book_{idx}"):
     		st.session_state.booking_event = idx
     		st.session_state.show_booking_form = True
     		st.session_state.active_tab = "edit"
-
 
         # Show booking form
         if 'show_booking_form' in st.session_state and st.session_state.show_booking_form:
