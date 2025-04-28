@@ -1,0 +1,90 @@
+# testapp1.py
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
+
+st.title("📅 Event Registration and Search - testapp1")
+
+# Initialize event storage
+if 'events' not in st.session_state:
+    st.session_state.events = pd.DataFrame(columns=["Date", "Title", "Location", "Info"])
+if 'edit_index' not in st.session_state:
+    st.session_state.edit_index = None
+
+# Tabs for navigation
+tab1, tab2 = st.tabs(["Register/Edit Event", "Search Events"])
+
+with tab1:
+    st.header("Register a New Event")
+
+    with st.form("event_form", clear_on_submit=True):
+        if st.session_state.edit_index is None:
+            event_date = st.date_input("Date of Event", value=datetime.now())
+            event_title = st.text_input("Event Title")
+            event_location = st.text_input("Location")
+            event_info = st.text_area("Additional Information")
+        else:
+            event = st.session_state.events.iloc[st.session_state.edit_index]
+            event_date = st.date_input("Date of Event", value=pd.to_datetime(event['Date']))
+            event_title = st.text_input("Event Title", value=event['Title'])
+            event_location = st.text_input("Location", value=event['Location'])
+            event_info = st.text_area("Additional Information", value=event['Info'])
+
+        submitted = st.form_submit_button("Save Event")
+
+        if submitted:
+            new_event = {
+                "Date": event_date,
+                "Title": event_title,
+                "Location": event_location,
+                "Info": event_info
+            }
+            if st.session_state.edit_index is None:
+                st.session_state.events = pd.concat(
+                    [st.session_state.events, pd.DataFrame([new_event])], 
+                    ignore_index=True
+                )
+                st.success("Event registered successfully!")
+            else:
+                st.session_state.events.iloc[st.session_state.edit_index] = new_event
+                st.success("Event updated successfully!")
+                st.session_state.edit_index = None
+
+    st.subheader("Existing Events")
+    if not st.session_state.events.empty:
+        for idx, row in st.session_state.events.iterrows():
+            with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
+                st.write(f"**Info:** {row['Info']}")
+                col1, col2 = st.columns(2)
+                if col1.button("Edit", key=f"edit_{idx}"):
+                    st.session_state.edit_index = idx
+                    st.experimental_rerun()
+                if col2.button("Delete", key=f"delete_{idx}"):
+                    st.session_state.events.drop(idx, inplace=True)
+                    st.session_state.events.reset_index(drop=True, inplace=True)
+                    st.success("Event deleted successfully!")
+                    st.experimental_rerun()
+    else:
+        st.info("No events registered yet.")
+
+with tab2:
+    st.header("Search Events")
+
+    search_query = st.text_input("Search by Title or Location", key="search_text")
+    search_date = st.date_input("Or search by Date", value=None, key="search_date")
+
+    filtered_events = st.session_state.events.copy()
+
+    if search_query:
+        filtered_events = filtered_events[
+            filtered_events["Title"].str.contains(search_query, case=False, na=False) |
+            filtered_events["Location"].str.contains(search_query, case=False, na=False)
+        ]
+
+    if search_date and search_date != datetime.now().date():
+        filtered_events = filtered_events[filtered_events["Date"] == pd.to_datetime(search_date)]
+
+    st.subheader(f"Found {len(filtered_events)} event(s):")
+    st.dataframe(filtered_events)
