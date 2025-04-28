@@ -5,16 +5,18 @@ from datetime import datetime
 
 st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
 
-st.title("📅 Event Registration and Search - testapp1")
+st.title("📅 Event Registration, Booking and Search - testapp1")
 
-# Initialize event storage
+# Initialize session state
 if 'events' not in st.session_state:
     st.session_state.events = pd.DataFrame(columns=["Date", "Title", "Location", "Info"])
 if 'edit_index' not in st.session_state:
     st.session_state.edit_index = None
+if 'bookings' not in st.session_state:
+    st.session_state.bookings = []  # List of dictionaries
 
 # Tabs for navigation
-tab1, tab2 = st.tabs(["Register/Edit Event", "Search Events"])
+tab1, tab2, tab3 = st.tabs(["Register/Edit Event", "Search Events", "View Bookings"])
 
 with tab1:
     st.header("Register a New Event")
@@ -57,7 +59,7 @@ with tab1:
         for idx, row in st.session_state.events.iterrows():
             with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
                 st.write(f"**Info:** {row['Info']}")
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 if col1.button("Edit", key=f"edit_{idx}"):
                     st.session_state.edit_index = idx
                     st.experimental_rerun()
@@ -66,6 +68,35 @@ with tab1:
                     st.session_state.events.reset_index(drop=True, inplace=True)
                     st.success("Event deleted successfully!")
                     st.experimental_rerun()
+                if col3.button("Book Now", key=f"book_{idx}"):
+                    st.session_state.booking_event = idx
+                    st.session_state.show_booking_form = True
+                    st.experimental_rerun()
+
+        # Show booking form
+        if 'show_booking_form' in st.session_state and st.session_state.show_booking_form:
+            idx = st.session_state.booking_event
+            event = st.session_state.events.iloc[idx]
+            st.subheader(f"Booking for: {event['Title']} on {event['Date']}")
+            with st.form("booking_form"):
+                name = st.text_input("Your Name")
+                email = st.text_input("Your Email Address")
+                dances = st.multiselect("Dance Selections", ["Heavy Jig", "Light Jig", "Reel", "Championship"])
+                submit_booking = st.form_submit_button("Submit Booking")
+                if submit_booking:
+                    booking = {
+                        "Event": event['Title'],
+                        "Date": event['Date'],
+                        "Location": event['Location'],
+                        "Name": name,
+                        "Email": email,
+                        "Dances": dances
+                    }
+                    st.session_state.bookings.append(booking)
+                    st.success("Booking submitted successfully!")
+                    del st.session_state.show_booking_form
+                    st.experimental_rerun()
+
     else:
         st.info("No events registered yet.")
 
@@ -88,3 +119,12 @@ with tab2:
 
     st.subheader(f"Found {len(filtered_events)} event(s):")
     st.dataframe(filtered_events)
+
+with tab3:
+    st.header("View Bookings")
+
+    if st.session_state.bookings:
+        booking_df = pd.DataFrame(st.session_state.bookings)
+        st.dataframe(booking_df)
+    else:
+        st.info("No bookings yet.")
