@@ -1,12 +1,49 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import smtplib
+from email.message import EmailMessage
 
+# Page config
 st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
-
 st.title("📅 Event Registration, Booking and Search - testapp1")
 
-# Initialize session state
+# Email credentials from secrets
+EMAIL_ADDRESS = st.secrets["email"]["address"]
+EMAIL_PASSWORD = st.secrets["email"]["password"]
+
+# Function to send confirmation email
+def send_booking_email(to_email, name, event, dances):
+    msg = EmailMessage()
+    msg["Subject"] = f"Your Booking for {event['Title']}"
+    msg["From"] = EMAIL_ADDRESS
+    msg["To"] = to_email
+
+    dance_list = ", ".join(dances)
+    body = f"""
+Hi {name},
+
+This is to confirm your booking for the event:
+
+Event: {event['Title']}
+Date: {event['Date']}
+Location: {event['Location']}
+Dances: {dance_list}
+
+Thank you for registering!
+"""
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Failed to send confirmation email: {e}")
+        return False
+
+# Session state initialization
 if 'events' not in st.session_state:
     st.session_state.events = pd.DataFrame(columns=["Date", "Title", "Location", "Info"])
 if 'edit_index' not in st.session_state:
@@ -18,12 +55,12 @@ if 'show_booking_form' not in st.session_state:
 if 'booking_event' not in st.session_state:
     st.session_state.booking_event = None
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "edit"  # default to edit tab
+    st.session_state.active_tab = "edit"
 
-# Tabs with manual control
+# Tabs
 tab1, tab2, tab3 = st.tabs(["Register/Edit Event", "Search Events", "View Bookings"])
 
-# --- Tab 1: Register / Edit ---
+# --- Register/Edit Tab ---
 if st.session_state.active_tab == "edit":
     with tab1:
         st.header("Register a New Event")
@@ -81,7 +118,6 @@ if st.session_state.active_tab == "edit":
                         st.session_state.show_booking_form = True
                         st.session_state.active_tab = "edit"
 
-            # Show booking form if requested
             if st.session_state.show_booking_form:
                 idx = st.session_state.booking_event
                 if idx is not None and idx < len(st.session_state.events):
@@ -102,14 +138,18 @@ if st.session_state.active_tab == "edit":
                                 "Dances": dances
                             }
                             st.session_state.bookings.append(booking)
-                            st.success("Booking submitted successfully!")
+                            email_sent = send_booking_email(email, name, event, dances)
+                            if email_sent:
+                                st.success("Booking submitted and confirmation email sent!")
+                            else:
+                                st.warning("Booking submitted, but email failed.")
                             st.session_state.show_booking_form = False
                             st.session_state.booking_event = None
 
         else:
             st.info("No events registered yet.")
 
-# --- Tab 2: Search ---
+# --- Search Events Tab ---
 if st.session_state.active_tab == "search":
     with tab2:
         st.header("Search Events")
@@ -131,7 +171,7 @@ if st.session_state.active_tab == "search":
         st.subheader(f"Found {len(filtered_events)} event(s):")
         st.dataframe(filtered_events)
 
-# --- Tab 3: View Bookings ---
+# --- View Bookings Tab ---
 if st.session_state.active_tab == "bookings":
     with tab3:
         st.header("View Bookings")
