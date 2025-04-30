@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
-'test
+
 # Page config
 st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
 st.title("📅 Event Registration, Booking and Search - testapp1")
