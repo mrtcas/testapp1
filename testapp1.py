@@ -3,16 +3,56 @@ import pandas as pd
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Page config
 st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
 st.title("📅 Event Registration, Booking and Search - testapp1")
 
-# Email credentials from secrets
+# -------------------------------
+# GOOGLE SHEETS SETUP
+# -------------------------------
+
+@st.cache_resource
+def get_gsheet_connection():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+    return client
+
+def get_worksheet(sheet_name):
+    client = get_gsheet_connection()
+    sheet = client.open(sheet_name)
+    return sheet.sheet1
+
+def load_events():
+    ws = get_worksheet("testapp1_events")
+    records = ws.get_all_records()
+    return pd.DataFrame(records)
+
+def save_event_to_sheet(event):
+    ws = get_worksheet("testapp1_events")
+    ws.append_row([event["Date"], event["Title"], event["Location"], event["Info"]])
+
+def save_booking_to_sheet(booking):
+    ws = get_worksheet("testapp1_bookings")
+    ws.append_row([
+        booking["Event"],
+        booking["Date"],
+        booking["Location"],
+        booking["Name"],
+        booking["Email"],
+        ", ".join(booking["Dances"])
+    ])
+
+# -------------------------------
+# EMAIL CONFIG
+# -------------------------------
+
 EMAIL_ADDRESS = st.secrets["email"]["address"]
 EMAIL_PASSWORD = st.secrets["email"]["password"]
 
-# Function to send confirmation email
 def send_booking_email(to_email, name, event, dances):
     msg = EmailMessage()
     msg["Subject"] = f"Your Booking for {event['Title']}"
@@ -43,13 +83,12 @@ Thank you for registering!
         st.error(f"Failed to send confirmation email: {e}")
         return False
 
-# Session state initialization
-if 'events' not in st.session_state:
-    st.session_state.events = pd.DataFrame(columns=["Date", "Title", "Location", "Info"])
+# -------------------------------
+# SESSION STATE SETUP
+# -------------------------------
+
 if 'edit_index' not in st.session_state:
     st.session_state.edit_index = None
-if 'bookings' not in st.session_state:
-    st.session_state.bookings = []
 if 'show_booking_form' not in st.session_state:
     st.session_state.show_booking_form = False
 if 'booking_event' not in st.session_state:
@@ -57,7 +96,13 @@ if 'booking_event' not in st.session_state:
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "edit"
 
-# Tabs
+# Load events from Google Sheet
+st.session_state.events = load_events()
+
+# -------------------------------
+# UI TABS
+# -------------------------------
+
 tab1, tab2, tab3 = st.tabs(["Register/Edit Event", "Search Events", "View Bookings"])
 
 # --- Register/Edit Tab ---
@@ -82,21 +127,13 @@ if st.session_state.active_tab == "edit":
 
             if submitted:
                 new_event = {
-                    "Date": event_date,
+                    "Date": event_date.strftime('%Y-%m-%d'),
                     "Title": event_title,
                     "Location": event_location,
                     "Info": event_info
                 }
-                if st.session_state.edit_index is None:
-                    st.session_state.events = pd.concat(
-                        [st.session_state.events, pd.DataFrame([new_event])],
-                        ignore_index=True
-                    )
-                    st.success("Event registered successfully!")
-                else:
-                    st.session_state.events.iloc[st.session_state.edit_index] = new_event
-                    st.success("Event updated successfully!")
-                    st.session_state.edit_index = None
+                save_event_to_sheet(new_event)
+                st.success("Event registered successfully!")
 
         st.subheader("Existing Events")
 
@@ -104,19 +141,13 @@ if st.session_state.active_tab == "edit":
             for idx, row in st.session_state.events.iterrows():
                 with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
                     st.write(f"**Info:** {row['Info']}")
-                    col1, col2, col3 = st.columns(3)
-                    if col1.button("Edit", key=f"edit_{idx}"):
-                        st.session_state.edit_index = idx
-                        st.session_state.active_tab = "edit"
-                    if col2.button("Delete", key=f"delete_{idx}"):
-                        st.session_state.events.drop(idx, inplace=True)
-                        st.session_state.events.reset_index(drop=True, inplace=True)
-                        st.success("Event deleted successfully!")
-                        st.session_state.active_tab = "edit"
-                    if col3.button("Book Now", key=f"book_{idx}"):
+                    col1, col2 = st.columns(2)
+                    if col1.button("Book Now", key=f"book_{idx}"):
                         st.session_state.booking_event = idx
                         st.session_state.show_booking_form = True
                         st.session_state.active_tab = "edit"
+                    if col2.button("Refresh", key=f"refresh_{idx}"):
+                        st.rerun()
 
             if st.session_state.show_booking_form:
                 idx = st.session_state.booking_event
@@ -137,7 +168,7 @@ if st.session_state.active_tab == "edit":
                                 "Email": email,
                                 "Dances": dances
                             }
-                            st.session_state.bookings.append(booking)
+                            save_booking_to_sheet(booking)
                             email_sent = send_booking_email(email, name, event, dances)
                             if email_sent:
                                 st.success("Booking submitted and confirmation email sent!")
@@ -145,11 +176,12 @@ if st.session_state.active_tab == "edit":
                                 st.warning("Booking submitted, but email failed.")
                             st.session_state.show_booking_form = False
                             st.session_state.booking_event = None
+                            st.rerun()
 
         else:
             st.info("No events registered yet.")
 
-# --- Search Events Tab ---
+# --- Search Tab ---
 if st.session_state.active_tab == "search":
     with tab2:
         st.header("Search Events")
@@ -171,13 +203,18 @@ if st.session_state.active_tab == "search":
         st.subheader(f"Found {len(filtered_events)} event(s):")
         st.dataframe(filtered_events)
 
-# --- View Bookings Tab ---
+# --- Bookings Tab ---
 if st.session_state.active_tab == "bookings":
     with tab3:
-        st.header("View Bookings")
+        st.header("Bookings (from Google Sheet)")
 
-        if st.session_state.bookings:
-            booking_df = pd.DataFrame(st.session_state.bookings)
-            st.dataframe(booking_df)
-        else:
-            st.info("No bookings yet.")
+        try:
+            ws = get_worksheet("testapp1_bookings")
+            bookings_data = ws.get_all_records()
+            booking_df = pd.DataFrame(bookings_data)
+            if not booking_df.empty:
+                st.dataframe(booking_df)
+            else:
+                st.info("No bookings yet.")
+        except Exception as e:
+            st.error(f"Error loading bookings: {e}")
