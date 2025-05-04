@@ -78,7 +78,8 @@ with tab2:
                 if st.button("Book Now", key=f"book_{idx}"):
                     row["Price"] = price
                     st.session_state.booking_event = row.to_dict()
-                    st.switch_page("testapp1.py?page=book")
+                    st.session_state.show_booking_form = True #set the session state
+                    st.experimental_rerun()
 
 # --- TAB 3: View Bookings ---
 with tab3:
@@ -93,7 +94,7 @@ with tab3:
         st.error(f"Error loading bookings: {e}")
 
 # --- BOOKING PAGE (via query param) ---
-if st.query_params.get("page") == "book":
+if st.session_state.get("show_booking_form"): #check the session state
     st.subheader("Book This Event")
     event = st.session_state.get("booking_event")
     if not event:
