@@ -1,212 +1,151 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-import smtplib
-from email.message import EmailMessage
 import gspread
+import stripe
 from oauth2client.service_account import ServiceAccountCredentials
+from urllib.parse import urlencode
 
-st.set_page_config(page_title="Event Manager - testapp1", page_icon="📅")
-st.title("📅 Event Registration, Booking and Search - testapp1")
+# Stripe setup
+stripe.api_key = st.secrets["stripe"]["secret_key"]
+STRIPE_PUBLISHABLE_KEY = st.secrets["stripe"]["publishable_key"]
 
-# -------------------------------
-# GOOGLE SHEETS SETUP
-# -------------------------------
+# Set page
+st.set_page_config(page_title="Event Booking App", layout="centered")
 
-@st.cache_resource
-def get_gsheet_connection():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_dict = st.secrets["gcp_service_account"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-    return client
+# Google Sheets setup
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+client = gspread.authorize(credentials)
 
-def get_worksheet(sheet_name):
-    client = get_gsheet_connection()
-    sheet = client.open(sheet_name)
-    return sheet.sheet1
+# Load sheets
+def get_sheet(name):
+    return client.open(name).sheet1
 
+event_sheet = get_sheet("testapp1_events")
+booking_sheet = get_sheet("testapp1_bookings")
+
+# Load events into session
 def load_events():
-    ws = get_worksheet("testapp1_events")
-    records = ws.get_all_records()
-    return pd.DataFrame(records)
-
-def save_event_to_sheet(event):
-    ws = get_worksheet("testapp1_events")
-    ws.append_row([event["Date"], event["Title"], event["Location"], event["Info"]])
-
-def save_booking_to_sheet(booking):
-    ws = get_worksheet("testapp1_bookings")
-    ws.append_row([
-        booking["Event"],
-        booking["Date"],
-        booking["Location"],
-        booking["Name"],
-        booking["Email"],
-        ", ".join(booking["Dances"])
-    ])
-
-# -------------------------------
-# EMAIL CONFIG
-# -------------------------------
-
-EMAIL_ADDRESS = st.secrets["email"]["address"]
-EMAIL_PASSWORD = st.secrets["email"]["password"]
-
-def send_booking_email(to_email, name, event, dances):
-    msg = EmailMessage()
-    msg["Subject"] = f"Your Booking for {event['Title']}"
-    msg["From"] = EMAIL_ADDRESS
-    msg["To"] = to_email
-
-    dance_list = ", ".join(dances)
-    body = f"""
-Hi {name},
-
-This is to confirm your booking for the event:
-
-Event: {event['Title']}
-Date: {event['Date']}
-Location: {event['Location']}
-Dances: {dance_list}
-
-Thank you for registering!
-"""
-    msg.set_content(body)
-
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            smtp.send_message(msg)
-        return True
-    except Exception as e:
-        st.error(f"Failed to send confirmation email: {e}")
-        return False
+        events = event_sheet.get_all_records()
+        return pd.DataFrame(events)
+    except:
+        return pd.DataFrame()
 
-# -------------------------------
-# SESSION STATE SETUP
-# -------------------------------
+if "events_df" not in st.session_state:
+    st.session_state.events_df = load_events()
 
-if 'edit_index' not in st.session_state:
-    st.session_state.edit_index = None
-if 'show_booking_form' not in st.session_state:
-    st.session_state.show_booking_form = False
-if 'booking_event' not in st.session_state:
-    st.session_state.booking_event = None
+# Tabs
+tab1, tab2, tab3 = st.tabs(["Register Event", "Search Events", "View Bookings"])
 
-# Load events from Google Sheet
-st.session_state.events = load_events()
-
-# -------------------------------
-# TABS (No session-state dependency)
-# -------------------------------
-
-tab1, tab2, tab3 = st.tabs(["Register/Edit Event", "Search Events", "View Bookings"])
-
-# --- Register/Edit Tab ---
+# --- TAB 1: Register Event ---
 with tab1:
-    st.header("Register a New Event")
-
-    with st.form("event_form", clear_on_submit=True):
-        event_date = st.date_input("Date of Event", value=datetime.now())
-        event_title = st.text_input("Event Title")
-        event_location = st.text_input("Location")
-        event_info = st.text_area("Additional Information")
-        submitted = st.form_submit_button("Save Event")
-
+    st.subheader("Register a New Event")
+    with st.form("event_form"):
+        title = st.text_input("Event Title")
+        date = st.date_input("Date")
+        location = st.text_input("Location")
+        info = st.text_area("Additional Information")
+        price = st.number_input("Price (£)", min_value=1.0, format="%.2f")
+        submitted = st.form_submit_button("Register Event")
         if submitted:
-            new_event = {
-                "Date": event_date.strftime('%Y-%m-%d'),
-                "Title": event_title,
-                "Location": event_location,
-                "Info": event_info
-            }
-            save_event_to_sheet(new_event)
-            st.success("Event registered successfully!")
-            st.session_state.events = load_events()  # Refresh events
+            event_sheet.append_row([str(date), title, location, info, float(price)])
+            st.success("Event registered.")
+            st.session_state.events_df = load_events()
+            st.experimental_rerun()
 
-    st.subheader("Existing Events")
+# --- TAB 2: Search & Book ---
+with tab2:
+    st.subheader("Search for Events")
+    events = st.session_state.events_df
+    if events.empty:
+        st.info("No events found.")
+    else:
+        search = st.text_input("Search by Title or Location")
+        filtered = events[
+            events["Title"].str.contains(search, case=False, na=False) |
+            events["Location"].str.contains(search, case=False, na=False)
+        ] if search else events
 
-    if not st.session_state.events.empty:
-        for idx, row in st.session_state.events.iterrows():
+        for idx, row in filtered.iterrows():
             with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
                 st.write(f"**Info:** {row['Info']}")
-                col1, col2 = st.columns(2)
-                if col1.button("Book Now", key=f"book_{idx}"):
-                    st.session_state.booking_event = idx
-                    st.session_state.show_booking_form = True
-                if col2.button("Refresh", key=f"refresh_{idx}"):
-                    st.rerun()
+                st.write(f"**Price:** £{row['Price']:.2f}")
+                if st.button("Book Now", key=f"book_{idx}"):
+                    st.session_state.booking_event = row.to_dict()
+                    st.switch_page("testapp1.py?page=book")
 
-        if st.session_state.show_booking_form:
-            idx = st.session_state.booking_event
-            if idx is not None and idx < len(st.session_state.events):
-                event = st.session_state.events.iloc[idx]
-                st.subheader(f"Booking for: {event['Title']} on {event['Date']}")
-                with st.form("booking_form"):
-                    name = st.text_input("Your Name")
-                    email = st.text_input("Your Email Address")
-                    dances = st.multiselect("Dance Selections", ["Heavy Jig", "Light Jig", "Reel", "Championship"])
-                    submit_booking = st.form_submit_button("Submit Booking")
-                    if submit_booking:
-                        booking = {
-                            "Event": event['Title'],
-                            "Date": event['Date'],
-                            "Location": event['Location'],
-                            "Name": name,
-                            "Email": email,
-                            "Dances": dances
-                        }
-                        save_booking_to_sheet(booking)
-                        email_sent = send_booking_email(email, name, event, dances)
-                        if email_sent:
-                            st.success("Booking submitted and confirmation email sent!")
-                        else:
-                            st.warning("Booking submitted, but email failed.")
-                        st.session_state.show_booking_form = False
-                        st.session_state.booking_event = None
-                        st.session_state.events = load_events()
-                        st.rerun()
-    else:
-        st.info("No events registered yet.")
-
-# --- Search Events Tab ---
-with tab2:
-    st.header("Search Events")
-
-    search_query = st.text_input("Search by Title or Location")
-    search_date = st.date_input("Or search by Date")
-
-    filtered_events = st.session_state.events.copy()
-
-    if search_query:
-        filtered_events = filtered_events[
-            filtered_events["Title"].str.contains(search_query, case=False, na=False) |
-            filtered_events["Location"].str.contains(search_query, case=False, na=False)
-        ]
-
-    if search_date and search_date != datetime.now().date():
-        filtered_events = filtered_events[
-            filtered_events["Date"] == pd.to_datetime(search_date).strftime('%Y-%m-%d')
-        ]
-
-    st.subheader(f"Found {len(filtered_events)} event(s):")
-    if not filtered_events.empty:
-        st.dataframe(filtered_events)
-    else:
-        st.info("No matching events found.")
-
-# --- Bookings Tab ---
+# --- TAB 3: View Bookings ---
 with tab3:
-    st.header("Bookings (from Google Sheet)")
-
+    st.subheader("All Bookings")
     try:
-        ws = get_worksheet("testapp1_bookings")
-        bookings_data = ws.get_all_records()
-        booking_df = pd.DataFrame(bookings_data)
-        if not booking_df.empty:
-            st.dataframe(booking_df)
+        bookings = booking_sheet.get_all_records()
+        if bookings:
+            st.dataframe(pd.DataFrame(bookings))
         else:
             st.info("No bookings yet.")
     except Exception as e:
         st.error(f"Error loading bookings: {e}")
+
+# --- BOOKING PAGE (via query param) ---
+if st.query_params.get("page") == "book":
+    st.subheader("Book This Event")
+    event = st.session_state.get("booking_event")
+    if not event:
+        st.warning("No event selected.")
+        st.stop()
+
+    with st.form("booking_form"):
+        name = st.text_input("Your Name")
+        email = st.text_input("Your Email")
+        dances = st.multiselect("Select Dances", ["Heavy Jig", "Light Jig", "Reel", "Championship"])
+        book = st.form_submit_button("Proceed to Payment")
+
+        if book and name and email and dances:
+            # Create Stripe Checkout Session
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "gbp",
+                        "product_data": {"name": f"{event['Title']} - {event['Date']}"},
+                        "unit_amount": int(float(event["Price"]) * 100),
+                    },
+                    "quantity": 1,
+                }],
+                mode="payment",
+                success_url=st.experimental_get_url() + "?page=confirm" +
+                            f"&name={urlencode({'': name})[1:]}" +
+                            f"&email={urlencode({'': email})[1:]}" +
+                            f"&dances={urlencode({'': ','.join(dances)})[1:]}",
+                cancel_url=st.experimental_get_url(),
+            )
+
+            st.success("Redirecting to Stripe Checkout...")
+            st.markdown(f"""
+                <meta http-equiv="refresh" content="0; URL={session.url}" />
+            """, unsafe_allow_html=True)
+            st.stop()
+
+# --- PAYMENT CONFIRMATION PAGE ---
+if st.query_params.get("page") == "confirm":
+    st.success("Payment Successful! Booking confirmed.")
+    name = st.query_params.get("name", "")
+    email = st.query_params.get("email", "")
+    dances = st.query_params.get("dances", "")
+    event = st.session_state.get("booking_event")
+
+    if not event:
+        st.error("Missing event context.")
+        st.stop()
+
+    # Log booking
+    booking_sheet.append_row([
+        event["Title"], event["Date"], event["Location"],
+        name, email, dances
+    ])
+
+    st.write(f"**Name:** {name}")
+    st.write(f"**Event:** {event['Title']} on {event['Date']} at {event['Location']}")
+    st.write(f"**Dances:** {dances}")
+    st.write("You will receive a confirmation email shortly.")
