@@ -68,10 +68,15 @@ with tab2:
         ] if search else events
 
         for idx, row in filtered.iterrows():
+            try:
+                price = float(row.get("Price", 0))
+            except (ValueError, TypeError):
+                price = 0.0
             with st.expander(f"{row['Title']} on {row['Date']} at {row['Location']}"):
                 st.write(f"**Info:** {row['Info']}")
-                st.write(f"**Price:** £{row['Price']:.2f}")
+                st.write(f"**Price:** £{price:.2f}")
                 if st.button("Book Now", key=f"book_{idx}"):
+                    row["Price"] = price
                     st.session_state.booking_event = row.to_dict()
                     st.switch_page("testapp1.py?page=book")
 
@@ -102,6 +107,11 @@ if st.query_params.get("page") == "book":
         book = st.form_submit_button("Proceed to Payment")
 
         if book and name and email and dances:
+            try:
+                price = float(event["Price"])
+            except (ValueError, TypeError):
+                price = 0.0
+
             # Create Stripe Checkout Session
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
@@ -109,7 +119,7 @@ if st.query_params.get("page") == "book":
                     "price_data": {
                         "currency": "gbp",
                         "product_data": {"name": f"{event['Title']} - {event['Date']}"},
-                        "unit_amount": int(float(event["Price"]) * 100),
+                        "unit_amount": int(price * 100),
                     },
                     "quantity": 1,
                 }],
