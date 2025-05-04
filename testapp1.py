@@ -162,4 +162,51 @@ with tab1:
                         if email_sent:
                             st.success("Booking submitted and confirmation email sent!")
                         else:
-                            st
+                            st.warning("Booking submitted, but email failed.")
+                        st.session_state.show_booking_form = False
+                        st.session_state.booking_event = None
+                        st.session_state.events = load_events()
+                        st.rerun()
+    else:
+        st.info("No events registered yet.")
+
+# --- Search Events Tab ---
+with tab2:
+    st.header("Search Events")
+
+    search_query = st.text_input("Search by Title or Location")
+    search_date = st.date_input("Or search by Date")
+
+    filtered_events = st.session_state.events.copy()
+
+    if search_query:
+        filtered_events = filtered_events[
+            filtered_events["Title"].str.contains(search_query, case=False, na=False) |
+            filtered_events["Location"].str.contains(search_query, case=False, na=False)
+        ]
+
+    if search_date and search_date != datetime.now().date():
+        filtered_events = filtered_events[
+            filtered_events["Date"] == pd.to_datetime(search_date).strftime('%Y-%m-%d')
+        ]
+
+    st.subheader(f"Found {len(filtered_events)} event(s):")
+    if not filtered_events.empty:
+        st.dataframe(filtered_events)
+    else:
+        st.info("No matching events found.")
+
+# --- Bookings Tab ---
+with tab3:
+    st.header("Bookings (from Google Sheet)")
+
+    try:
+        ws = get_worksheet("testapp1_bookings")
+        bookings_data = ws.get_all_records()
+        booking_df = pd.DataFrame(bookings_data)
+        if not booking_df.empty:
+            st.dataframe(booking_df)
+        else:
+            st.info("No bookings yet.")
+    except Exception as e:
+        st.error(f"Error loading bookings: {e}")
