@@ -79,7 +79,7 @@ with tab2:
                     row["Price"] = price
                     st.session_state.booking_event = row.to_dict()
                     st.session_state.show_booking_form = True #set the session state
-                    st.experimental_rerun()
+                    st.rerun()
 
 # --- TAB 3: View Bookings ---
 with tab3:
