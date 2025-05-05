@@ -43,7 +43,6 @@ with tab1:
         st.subheader("Register a New Event")
         title = st.text_input("Event Title")
         date = st.date_input("Event Date")
-        time = st.time_input("Event Time")
         info = st.text_area("Event Information")
         price = st.number_input("Price (£)", min_value=0.0, step=0.5)
         submitted = st.form_submit_button("Submit Event")
