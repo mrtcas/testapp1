@@ -80,7 +80,7 @@ with tab2:
                         row["Price"] = float(row["Price"])
                         st.session_state.booking_event = row.to_dict()
                         st.session_state.show_booking_form = True
-                        st.experimental_rerun()
+                        st.rerun()
         else:
             st.info("No events matched your search.")
     else:
