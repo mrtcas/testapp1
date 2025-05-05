@@ -72,7 +72,7 @@ with tab2:
 
         if not filtered_events.empty:
             for idx, row in filtered_events.iterrows():
-                with st.expander(f"{row['Title']} on {row['Date']} at {row['Time']}"):
+                with st.expander(f"{row['Title']} on {row['Date']}"):
                     st.write(f"**Info:** {row['Info']}")
                     st.write(f"**Price:** £{float(row['Price']):.2f}")
                     col1, col2 = st.columns(2)
