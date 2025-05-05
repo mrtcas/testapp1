@@ -19,7 +19,7 @@ bookings_sheet = client.open("event_data").worksheet("Bookings")
 
 # --- STRIPE SETUP ---
 stripe.api_key = st.secrets["stripe"]["secret_key"]
-base_url = "testapp1-7syhsu6x6hhrivhjekvc9v.streamlit.app"  # Replace with your actual domain if different
+base_url = "https://testapp1-7syhsu6x6hhrivhjekvc9v.streamlit.app"  # Replace with your actual domain if different
 
 # --- LOAD DATA ---
 def load_data():
