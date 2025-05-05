@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 from urllib.parse import urlencode
 from datetime import datetime
 
-email_user = st.secrets["email"]["username"]
+email_user = st.secrets["email"]["address"]
 email_pass = st.secrets["email"]["password"]
 
 
@@ -148,7 +148,7 @@ Event Booking Team
     msg['To'] = to_email
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login('youremail@example.com', 'your-app-password')
+        server.login('[address]', '[password]')
         server.send_message(msg)
 
 
