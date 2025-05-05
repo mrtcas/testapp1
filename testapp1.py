@@ -129,7 +129,7 @@ with tab3:
 
 # --- SUCCESS HANDLER ---
 if st.query_params.get("page") == "confirm":
-	st.success("✅ Payment Confirmed!")
+    st.success("✅ Payment Confirmed!")
 
     name = st.query_params.get("name", "")
     email = st.query_params.get("email", "")
