@@ -125,10 +125,11 @@ if st.session_state.get("show_booking_form"): #check the session state
                     "quantity": 1,
                 }],
                 mode="payment",
-                success_url=st.experimental_get_url() + "?page=confirm" +
-                            f"&name={urlencode({'': name})[1:]}" +
-                            f"&email={urlencode({'': email})[1:]}" +
-                            f"&dances={urlencode({'': ','.join(dances)})[1:]}",
+		base_url = "https://testapp1.streamlit.app"  # Or your actual deployed URL
+		success_url = base_url + "/?page=confirm" + \
+              		f"&name={urlencode({'': name})[1:]}" + \
+              		f"&email={urlencode({'': email})[1:]}" + \
+              		f"&dances={urlencode({'': ','.join(dances)})[1:]}",
                 cancel_url=st.experimental_get_url(),
             )
 
