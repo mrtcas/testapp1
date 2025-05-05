@@ -48,7 +48,7 @@ with tab1:
         submitted = st.form_submit_button("Submit Event")
 
         if submitted:
-            new_event = [len(events_df)+1, title, str(date), str(time), info, price]
+            new_event = [len(events_df)+1, title, str(date), info, price]
             events_sheet.append_row(new_event)
             st.success("✅ Event registered successfully!")
 
