@@ -129,13 +129,21 @@ with tab3:
 
 # --- SUCCESS HANDLER ---
 if st.query_params.get("page") == "confirm":
+	st.success("✅ Payment Confirmed!")
+
     name = st.query_params.get("name", "")
     email = st.query_params.get("email", "")
     dances = st.query_params.get("dances", "")
     event_id = st.query_params.get("event_id", "")
 
-    if all([name, email, dances, event_id]):
-        booking = [name, email, dances, event_id]
-        bookings_sheet.append_row(booking)
-        st.success("✅ Your booking is confirmed! Thank you.")
-        st.experimental_set_query_params()  # Clear URL
+    booking_id = str(uuid.uuid4())
+    booking_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    booking_data = [booking_id, event_id, name, email, dances, booking_date]
+    bookings_sheet.append_row(booking_data)
+
+    st.write("Thank you for your booking!")
+    st.write(f"**Name:** {name}")
+    st.write(f"**Email:** {email}")
+    st.write(f"**Dances:** {dances}")
+    st.write(f"**Booking ID:** {booking_id}")
