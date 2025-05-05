@@ -39,17 +39,17 @@ st.session_state.bookings = bookings_df
 
 # --- UI SETUP ---
 st.set_page_config(page_title="Event Booking App", layout="wide")
-st.title("🎟️ Event Booking & Registration")
+st.title("🎟️ Feis Booking & Registration")
 
-tab1, tab2, tab3 = st.tabs(["Register a New Event", "Search Events", "View Bookings"])
+tab1, tab2, tab3 = st.tabs(["Register a Feis", "Feis Search", "View Bookings"])
 
 # --- TAB 1: Register New Event ---
 with tab1:
     with st.form("event_form"):
-        st.subheader("Register a New Event")
+        st.subheader("Register a New Feis")
         title = st.text_input("Event Title")
-        date = st.date_input("Event Date")
-        info = st.text_area("Event Information")
+        date = st.date_input("Feis Date")
+        info = st.text_area("Feis Information")
         price = st.number_input("Price (£)", min_value=0.0, step=0.5)
         submitted = st.form_submit_button("Submit Event")
 
