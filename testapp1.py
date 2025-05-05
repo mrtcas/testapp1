@@ -148,7 +148,7 @@ Event Booking Team
     msg['To'] = to_email
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login('[address]', '[password]')
+        server.login(email_user, email_pass)
         server.send_message(msg)
 
 
