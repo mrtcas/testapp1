@@ -2,8 +2,14 @@ import streamlit as st
 import pandas as pd
 import stripe
 import gspread
+import uuid
 from google.oauth2.service_account import Credentials
 from urllib.parse import urlencode
+from datetime import datetime
+
+email_user = st.secrets["email"]["username"]
+email_pass = st.secrets["email"]["password"]
+
 
 # --- GOOGLE SHEETS SETUP ---
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -119,6 +125,33 @@ with tab2:
             except Exception as e:
                 st.error(f"Error creating Stripe session: {e}")
 
+# --- Confirmation Email ---
+import smtplib
+from email.mime.text import MIMEText
+
+def send_confirmation_email(to_email, name, dances, booking_id):
+    msg = MIMEText(f"""
+Hi {name},
+
+Thank you for booking!
+
+Dance Styles: {dances}
+Booking ID: {booking_id}
+
+Looking forward to seeing you at the event!
+
+Regards,
+Event Booking Team
+    """)
+    msg['Subject'] = 'Your Booking Confirmation'
+    msg['From'] = 'youremail@example.com'
+    msg['To'] = to_email
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login('youremail@example.com', 'your-app-password')
+        server.send_message(msg)
+
+
 # --- TAB 3: View Bookings ---
 with tab3:
     st.subheader("📋 All Bookings")
@@ -141,6 +174,8 @@ if st.query_params.get("page") == "confirm":
 
     booking_data = [booking_id, event_id, name, email, dances, booking_date]
     bookings_sheet.append_row(booking_data)
+    send_confirmation_email(email, name, dances, booking_id)
+
 
     st.write("Thank you for your booking!")
     st.write(f"**Name:** {name}")
