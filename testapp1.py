@@ -99,7 +99,7 @@ with tab2:
         event = st.session_state.booking_event
         name = st.text_input("Your Name")
         email = st.text_input("Your Email")
-        dances = st.multiselect("Dance Style", ["Salsa", "Bachata", "Kizomba"])
+        dances = st.multiselect("Class Type", ["Mon Championship", "Tues Hatfield Class", "Wed Championship", "Wed Afterschool", "Wed Grade Class", "Fri Afterschool"])
         submit_booking = st.button("Pay and Book")
 
         if submit_booking and name and email and dances:
